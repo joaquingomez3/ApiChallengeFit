@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;                // Para manejar claves y firmas de los tokens
 using System.Text;
 using ApiChallengeFit.Data;
+using ApiChallengeFit.Repository;
+using ApiChallengeFit.Repository.IRepository;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +50,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // Agrega Swagger/OpenAPI (documentación automática de la API)
 builder.Services.AddOpenApi();
 
+// ----------------------
+// INYECCIÓN DE DEPENDENCIAS (Repositorios)
+// ----------------------
+
+// Cada repositorio se registra para poder ser inyectado en los controladores
+builder.Services.AddScoped<IRepositoryUsuario, RepositoryUsuario>();
 
 var app = builder.Build();
 

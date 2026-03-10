@@ -6,4 +6,6 @@ public class Usuario {
     public string Rol { get; set; } // "Entrenador" | "Alumno"
     public string? Objetivo { get; set; }
     public ICollection<Rutina>? RutinasCreadas { get; set; }
+    // Si es alumno → Id del entrenador asignado
+    public int? EntrenadorId { get; set; }
 }

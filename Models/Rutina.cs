@@ -7,4 +7,5 @@ public class Rutina {
     public int? IdEntrenador { get; set; }
     public Usuario Entrenador { get; set; }
     public ICollection<RutinaEjercicio> RutinaEjercicios { get; set; }
+    
 }

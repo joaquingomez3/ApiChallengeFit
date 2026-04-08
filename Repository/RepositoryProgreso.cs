@@ -1,0 +1,132 @@
+using ApiChallengeFit.Data;
+using ApiChallengeFit.Repository.IRepository;
+using Microsoft.EntityFrameworkCore;
+
+namespace ApiChallengeFit.Repository;
+
+public class RepositoryProgreso : IRepositoryProgreso
+{
+    private readonly AppDbContext contexto;
+
+    public RepositoryProgreso(AppDbContext db)
+    {
+        contexto = db;
+    }
+
+    // Progreso semanal: porcentaje de rutinas completadas en la semana actual
+    public object ObtenerProgresoSemanal(int idAlumno)
+    {
+        // Calcular inicio de la semana (lunes)
+        var hoy = DateTime.Now.Date;
+        var diasDesdeInicioSemana = ((int)hoy.DayOfWeek + 6) % 7; // Lunes = 0
+        var inicioSemana = hoy.AddDays(-diasDesdeInicioSemana);
+        var finSemana = inicioSemana.AddDays(7);
+
+        // Total de rutinas asignadas al alumno
+        var totalAsignadas = contexto.UsuarioRutinas
+            .Count(ur => ur.IdUsuario == idAlumno);
+
+        // Rutinas completadas esta semana
+        var completadasSemana = contexto.UsuarioRutinas
+            .Count(ur => ur.IdUsuario == idAlumno
+                && ur.Completado
+                && ur.FechaFinalizacion >= inicioSemana
+                && ur.FechaFinalizacion < finSemana);
+
+        // Rutinas que se esperaban hacer esta semana (las asignadas que caen en la semana)
+        var asignadasSemana = contexto.UsuarioRutinas
+            .Count(ur => ur.IdUsuario == idAlumno
+                && ur.FechaAsignacion >= inicioSemana
+                && ur.FechaAsignacion < finSemana);
+
+        var totalSemana = asignadasSemana > 0 ? asignadasSemana : totalAsignadas;
+        var porcentaje = totalSemana > 0
+            ? (int)Math.Round((double)completadasSemana / totalSemana * 100)
+            : 0;
+
+        return new
+        {
+            Porcentaje = porcentaje,
+            CompletadasSemana = completadasSemana,
+            TotalSemana = totalSemana
+        };
+    }
+
+    // Progreso general: porcentaje total, cantidad de rutinas completadas y desafíos terminados
+    public object ObtenerProgresoGeneral(int idAlumno)
+    {
+        // Total de rutinas asignadas y completadas
+        var totalRutinas = contexto.UsuarioRutinas
+            .Count(ur => ur.IdUsuario == idAlumno);
+
+        var rutinasCompletadas = contexto.UsuarioRutinas
+            .Count(ur => ur.IdUsuario == idAlumno && ur.Completado);
+
+        // Total de desafíos asignados y completados
+        var totalDesafios = contexto.DesafioUsuarios
+            .Count(du => du.IdUsuario == idAlumno);
+
+        var desafiosCompletados = contexto.DesafioUsuarios
+            .Count(du => du.IdUsuario == idAlumno && du.Completado);
+
+        // Porcentaje general (promedio entre rutinas y desafíos)
+        var totalItems = totalRutinas + totalDesafios;
+        var completadosItems = rutinasCompletadas + desafiosCompletados;
+        var porcentajeGeneral = totalItems > 0
+            ? (int)Math.Round((double)completadosItems / totalItems * 100)
+            : 0;
+
+        return new
+        {
+            PorcentajeGeneral = porcentajeGeneral,
+            RutinasCompletadas = rutinasCompletadas,
+            TotalRutinas = totalRutinas,
+            DesafiosCompletados = desafiosCompletados,
+            TotalDesafios = totalDesafios
+        };
+    }
+
+    // Rendimiento: datos de los últimos 7 días (rutinas completadas por día)
+    public object ObtenerRendimiento(int idAlumno)
+    {
+        var hoy = DateTime.Now.Date;
+        var hace7Dias = hoy.AddDays(-6); // Incluye hoy + 6 días atrás = 7 días
+
+        // Obtener las rutinas completadas en los últimos 7 días agrupadas por fecha
+        var datos = contexto.UsuarioRutinas
+            .Where(ur => ur.IdUsuario == idAlumno
+                && ur.Completado
+                && ur.FechaFinalizacion >= hace7Dias
+                && ur.FechaFinalizacion < hoy.AddDays(1))
+            .ToList() // Materializar para agrupar en memoria
+            .GroupBy(ur => ur.FechaFinalizacion!.Value.Date)
+            .Select(g => new
+            {
+                Fecha = g.Key.ToString("yyyy-MM-dd"),
+                RutinasCompletadas = g.Count()
+            })
+            .OrderBy(d => d.Fecha)
+            .ToList();
+
+        // Llenar los días sin actividad con 0
+        var rendimiento = new List<object>();
+        for (int i = 0; i < 7; i++)
+        {
+            var fecha = hace7Dias.AddDays(i);
+            var fechaStr = fecha.ToString("yyyy-MM-dd");
+            var dia = datos.FirstOrDefault(d => d.Fecha == fechaStr);
+            rendimiento.Add(new
+            {
+                Fecha = fechaStr,
+                Dia = fecha.ToString("ddd"),
+                RutinasCompletadas = dia?.RutinasCompletadas ?? 0
+            });
+        }
+
+        return new
+        {
+            Periodo = $"{hace7Dias:yyyy-MM-dd} a {hoy:yyyy-MM-dd}",
+            Datos = rendimiento
+        };
+    }
+}

@@ -19,7 +19,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 );
 
 // Agrega el soporte para controladores (permite usar clases con [ApiController])
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    });
 
 // ----------------------
 // CONFIGURACIÓN DEL TOKEN JWT
@@ -56,6 +60,10 @@ builder.Services.AddOpenApi();
 
 // Cada repositorio se registra para poder ser inyectado en los controladores
 builder.Services.AddScoped<IRepositoryUsuario, RepositoryUsuario>();
+builder.Services.AddScoped<IRepositoryRutina, RepositoryRutina>();
+builder.Services.AddScoped<IRepositoryDesafio, RepositoryDesafio>();
+builder.Services.AddScoped<IRepositoryProgreso, RepositoryProgreso>();
+builder.Services.AddScoped<IRepositorySolicitud, RepositorySolicitud>();
 
 var app = builder.Build();
 

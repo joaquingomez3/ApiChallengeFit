@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 public class Desafio {
     public int Id { get; set; }
     public string Titulo { get; set; }
@@ -6,5 +8,7 @@ public class Desafio {
     public DateTime FechaFin { get; set; }
     public int Puntos { get; set; }
     public int? IdEntrenador { get; set; }
-    public Usuario Entrenador { get; set; }
+
+    [ForeignKey("IdEntrenador")]
+    public Usuario? Entrenador { get; set; }
 }

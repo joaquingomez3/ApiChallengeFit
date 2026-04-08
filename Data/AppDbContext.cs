@@ -18,6 +18,20 @@ namespace ApiChallengeFit.Data
         public DbSet<RutinaEjercicio> RutinaEjercicios { get; set; }
         public DbSet<Usuario> Usuarios { get; set; }
         public DbSet<UsuarioRutina> UsuarioRutinas { get; set; }
+        public DbSet<Objetivo> Objetivos { get; set; }
+        public DbSet<ObjetivoAlumno> ObjetivoAlumnos { get; set; }
+        public DbSet<Especialidad> Especialidades { get; set; }
+        public DbSet<EspecialidadEntrenador> EspecialidadEntrenadores { get; set; }
+        public DbSet<SolicitudVinculacion> Solicitudes { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            // Mapear nombres de tablas que no coinciden con la convención de EF Core
+            modelBuilder.Entity<EspecialidadEntrenador>().ToTable("especialidad_entrenador");
+            modelBuilder.Entity<ObjetivoAlumno>().ToTable("objetivo_alumno");
+        }
     }
 
 

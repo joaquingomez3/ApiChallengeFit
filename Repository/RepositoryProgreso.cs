@@ -129,4 +129,88 @@ public class RepositoryProgreso : IRepositoryProgreso
             Datos = rendimiento
         };
     }
+
+    // Obtiene el progreso desglosado por rutina de un alumno
+    public object? ObtenerRutinasConProgresoPorAlumno(int idEntrenador, int idAlumno, string estado)
+    {
+        // 1. Validar que el alumno pertenezca al entrenador logueado
+        var alumnoValido = contexto.Usuarios.Any(u => u.Id == idAlumno && u.EntrenadorId == idEntrenador && u.Rol == "Alumno");
+        if (!alumnoValido)
+        {
+            return null;
+        }
+
+        // 2. Traer las asignaciones de rutinas para este alumno
+        var query = contexto.UsuarioRutinas
+            .Include(ur => ur.Rutina)
+            .Where(ur => ur.IdUsuario == idAlumno);
+
+        // 3. Filtrar por estado
+        if (estado.ToLower() == "completadas")
+        {
+            query = query.Where(ur => ur.Completado == true);
+        }
+        else if (estado.ToLower() == "activas")
+        {
+            query = query.Where(ur => ur.Completado == false);
+        }
+
+        var rutinasAsignadas = query.ToList();
+
+        // 4. Calcular progreso
+        var idsRutinas = rutinasAsignadas.Select(ur => ur.IdRutina).ToList();
+        var progresosActivos = contexto.Progresos
+            .Where(p => p.IdUsuario == idAlumno && idsRutinas.Contains(p.IdRutina ?? 0))
+            .ToList();
+
+        var resultado = new List<object>();
+
+        foreach (var asignacion in rutinasAsignadas)
+        {
+            int porcentaje = 0;
+
+            if (asignacion.Completado)
+            {
+                porcentaje = 100;
+            }
+            else
+            {
+                // Buscamos progreso activo
+                var progreso = progresosActivos
+                    .OrderByDescending(p => p.Id)
+                    .FirstOrDefault(p => p.IdRutina == asignacion.IdRutina && !p.Completado);
+                
+                if (progreso != null && !string.IsNullOrEmpty(progreso.Estadisticas))
+                {
+                    try
+                    {
+                        using (var doc = System.Text.Json.JsonDocument.Parse(progreso.Estadisticas))
+                        {
+                            if (doc.RootElement.TryGetProperty("porcentaje", out var prop))
+                            {
+                                porcentaje = prop.GetInt32();
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Fallback a 0
+                    }
+                }
+            }
+
+            resultado.Add(new
+            {
+                IdRutina = asignacion.IdRutina,
+                Nombre = asignacion.Rutina?.Nombre,
+                Nivel = asignacion.Rutina?.Nivel,
+                Duracion = asignacion.Rutina?.Duracion,
+                Completado = asignacion.Completado,
+                FechaAsignacion = asignacion.FechaAsignacion,
+                Porcentaje = porcentaje
+            });
+        }
+
+        return resultado;
+    }
 }

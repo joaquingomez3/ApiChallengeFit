@@ -64,5 +64,31 @@ namespace ApiChallengeFit.Controllers
 
             return Ok(rendimiento);
         }
+
+        // GET /api/Progreso/alumno/{idAlumno}/rutinas?estado=activas
+        // Solo Entrenador: devuelve las rutinas asigandas a un alumno con el porcentaje de completitud
+        [HttpGet("alumno/{idAlumno}/rutinas")]
+        public IActionResult ObtenerRutinasDeAlumno(int idAlumno, [FromQuery] string estado = "activas")
+        {
+            var rol = User.FindFirstValue(ClaimTypes.Role);
+
+            if (rol != "Entrenador")
+                return StatusCode(403, new { mensaje = "Acceso denegado: solo los entrenadores pueden acceder a las rutinas de sus alumnos." });
+
+            var idEntrenadorStr = User.FindFirstValue("Id");
+            if (!int.TryParse(idEntrenadorStr, out int idEntrenador))
+            {
+                 return Unauthorized(new { mensaje = "Token inválido." });
+            }
+
+            var rutinas = repoProgreso.ObtenerRutinasConProgresoPorAlumno(idEntrenador, idAlumno, estado);
+
+            if (rutinas == null)
+            {
+                return StatusCode(403, new { mensaje = "Acceso denegado: el alumno no existe o no está vinculado a tu cuenta." });
+            }
+
+            return Ok(rutinas);
+        }
     }
 }

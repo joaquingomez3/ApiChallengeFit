@@ -61,4 +61,40 @@ public class RepositoryDesafio : IRepositoryDesafio
         contexto.DesafioUsuarios.Update(desafioUsuario);
         return contexto.SaveChanges();
     }
+
+    // Asigna un desafío a un alumno
+    // Retorna: -1 si el desafío no existe o no pertenece al entrenador
+    //          -2 si el alumno no existe o no está vinculado al entrenador
+    //          -3 si el alumno ya tiene este desafío asignado
+    //          > 0 si se asignó correctamente
+    public int AsignarDesafio(int idEntrenador, int idAlumno, int idDesafio)
+    {
+        // Verificar que el desafío existe y pertenece al entrenador
+        var desafio = contexto.Desafios.FirstOrDefault(d => d.Id == idDesafio && d.IdEntrenador == idEntrenador);
+        if (desafio == null)
+            return -1;
+
+        // Verificar que el alumno existe, es "Alumno" y está vinculado al entrenador
+        var alumno = contexto.Usuarios.FirstOrDefault(u => u.Id == idAlumno && u.Rol == "Alumno" && u.EntrenadorId == idEntrenador);
+        if (alumno == null)
+            return -2;
+
+        // Verificar que no tenga el mismo desafío ya asignado
+        var yaAsignado = contexto.DesafioUsuarios
+            .Any(du => du.IdUsuario == idAlumno && du.IdDesafio == idDesafio);
+        if (yaAsignado)
+            return -3;
+
+        var desafioUsuario = new DesafioUsuario
+        {
+            IdUsuario = idAlumno,
+            IdDesafio = idDesafio,
+            Progreso = 0,
+            Completado = false,
+            FechaAsignado = DateTime.Now
+        };
+
+        contexto.DesafioUsuarios.Add(desafioUsuario);
+        return contexto.SaveChanges();
+    }
 }

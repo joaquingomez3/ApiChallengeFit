@@ -132,12 +132,122 @@ public class RepositoryRutina : IRepositoryRutina
         return contexto.SaveChanges();
     }
 
+    // Marca un ejercicio de una rutina como completado e influye el progreso general
+    public int CompletarEjercicio(int idAlumno, int idRutinaEjercicio)
+    {
+        var ejercicio = contexto.RutinaEjercicios
+            .Include(re => re.Rutina)
+            .FirstOrDefault(re => re.Id == idRutinaEjercicio);
+
+        if (ejercicio == null) return -1;
+
+        // Verificar si la rutina correspondiente al ejercicio le está asignada al alumno sin completar
+        var asignacion = contexto.UsuarioRutinas
+            .FirstOrDefault(ur => ur.IdUsuario == idAlumno && ur.IdRutina == ejercicio.IdRutina && !ur.Completado);
+
+        if (asignacion == null) return -1;
+
+        // Actualizar como completado
+        ejercicio.Completado = true;
+        contexto.SaveChanges();
+
+        // Calcular progreso general de la rutina
+        var totalEjercicios = contexto.RutinaEjercicios.Count(re => re.IdRutina == ejercicio.IdRutina);
+        var ejerciciosCompletados = contexto.RutinaEjercicios.Count(re => re.IdRutina == ejercicio.IdRutina && re.Completado);
+
+        if (totalEjercicios > 0 && ejerciciosCompletados >= totalEjercicios)
+        {
+            // Completar automáticamente y cerrar la rutina dado que se completaron todos los ejercicios
+            CompletarRutina(idAlumno, ejercicio.IdRutina);
+        }
+        else
+        {
+            // Opcionalmente podemos actualizar el progreso vivo de la rutina actual
+            var progresoActivo = contexto.Progresos
+                .FirstOrDefault(p => p.IdUsuario == idAlumno && p.IdRutina == ejercicio.IdRutina && !p.Completado);
+
+            if (progresoActivo != null)
+            {
+                int porcentaje = totalEjercicios > 0 ? (int)Math.Round((double)ejerciciosCompletados / totalEjercicios * 100) : 0;
+                progresoActivo.Estadisticas = $"{{\"porcentaje\": {porcentaje}}}";
+                contexto.SaveChanges();
+            }
+        }
+
+        return 1;
+    }
+
     // Busca ejercicios por nombre (autocompletado)
     public IList<Ejercicio> BuscarEjercicios(string nombre)
     {
         return contexto.Ejercicios
             .Where(e => e.Nombre.Contains(nombre))
-            .Take(15) // Limitar resultados para no sobrecargar el cliente
+            .Take(15)
             .ToList();
+    }
+
+    // Asigna una rutina a un alumno
+    // Retorna: -1 si la rutina no existe o no pertenece al entrenador
+    //          -2 si el alumno no existe o no está vinculado al entrenador
+    //          -3 si el alumno ya tiene esta rutina asignada (no completada)
+    //          > 0 si se asignó correctamente
+    public int AsignarRutina(int idEntrenador, int idAlumno, int idRutina)
+    {
+        // Verificar que la rutina existe y pertenece al entrenador
+        var rutina = contexto.Rutinas.FirstOrDefault(r => r.Id == idRutina && r.IdEntrenador == idEntrenador);
+        if (rutina == null)
+            return -1;
+
+        // Verificar que el alumno existe, es "Alumno" y está vinculado al entrenador
+        var alumno = contexto.Usuarios.FirstOrDefault(u => u.Id == idAlumno && u.Rol == "Alumno" && u.EntrenadorId == idEntrenador);
+        if (alumno == null)
+            return -2;
+
+        // Verificar que no tenga la misma rutina asignada sin completar
+        var yaAsignada = contexto.UsuarioRutinas
+            .Any(ur => ur.IdUsuario == idAlumno && ur.IdRutina == idRutina && !ur.Completado);
+        if (yaAsignada)
+            return -3;
+
+        var usuarioRutina = new UsuarioRutina
+        {
+            IdUsuario = idAlumno,
+            IdRutina = idRutina,
+            FechaAsignacion = DateTime.Now,
+            Completado = false
+        };
+
+        contexto.UsuarioRutinas.Add(usuarioRutina);
+        return contexto.SaveChanges();
+    }
+
+    // Obtiene una rutina por su Id incluyendo ejercicios
+    public Rutina? ObtenerRutinaPorId(int idRutina)
+    {
+        return contexto.Rutinas
+            .Include(r => r.RutinaEjercicios)
+                .ThenInclude(re => re.Ejercicio)
+            .FirstOrDefault(r => r.Id == idRutina);
+    }
+
+    // Agrega un ejercicio a una rutina existente
+    public int AgregarEjercicioARutina(RutinaEjercicio rutinaEjercicio)
+    {
+        contexto.RutinaEjercicios.Add(rutinaEjercicio);
+        return contexto.SaveChanges();
+    }
+
+    // Edita series y repeticiones de un RutinaEjercicio existente
+    public int EditarRutinaEjercicio(int idRutinaEjercicio, int series, int repeticiones)
+    {
+        var re = contexto.RutinaEjercicios
+            .Include(x => x.Rutina)
+            .FirstOrDefault(x => x.Id == idRutinaEjercicio);
+
+        if (re == null) return -1;
+
+        re.Series = series;
+        re.Repeticiones = repeticiones;
+        return contexto.SaveChanges();
     }
 }

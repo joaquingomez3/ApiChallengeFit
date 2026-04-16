@@ -10,5 +10,8 @@ namespace ApiChallengeFit.Repository.IRepository
         IList<DesafioUsuario> ObtenerDesafiosConProgreso(int idAlumno);
         DesafioUsuario? ObtenerDesafioUsuarioPorId(int id);
         int ActualizarProgreso(DesafioUsuario desafioUsuario);
+
+        // Asignación de desafío a alumno
+        int AsignarDesafio(int idEntrenador, int idAlumno, int idDesafio);
     }
 }

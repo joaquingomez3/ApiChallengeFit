@@ -115,5 +115,36 @@ namespace ApiChallengeFit.Controllers
                 completado = desafioUsuario.Completado
             });
         }
+
+        // POST /api/Desafio/asignar
+        // Solo Entrenador: asigna uno de sus desafíos a uno de sus alumnos
+        [HttpPost("asignar")]
+        public IActionResult AsignarDesafio([FromBody] AsignarDesafioDto dto)
+        {
+            var rol = User.FindFirstValue(ClaimTypes.Role);
+
+            if (rol != "Entrenador")
+                return StatusCode(403, new { mensaje = "Acceso denegado: solo los entrenadores pueden asignar desafíos." });
+
+            var idEntrenador = int.Parse(User.FindFirstValue("Id"));
+
+            var res = repoDesafio.AsignarDesafio(idEntrenador, dto.IdAlumno, dto.IdDesafio);
+
+            return res switch
+            {
+                -1 => NotFound(new { mensaje = "El desafío no existe o no te pertenece." }),
+                -2 => BadRequest(new { mensaje = "El alumno no existe o no está vinculado a tu cuenta." }),
+                -3 => BadRequest(new { mensaje = "El alumno ya tiene este desafío asignado." }),
+                <= 0 => StatusCode(500, "No se pudo asignar el desafío."),
+                _ => Ok(new { mensaje = "Desafío asignado correctamente al alumno." })
+            };
+        }
+    }
+
+    // DTO para asignar desafío a un alumno
+    public class AsignarDesafioDto
+    {
+        public int IdAlumno { get; set; }
+        public int IdDesafio { get; set; }
     }
 }

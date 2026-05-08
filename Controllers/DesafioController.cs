@@ -44,7 +44,7 @@ namespace ApiChallengeFit.Controllers
                 return StatusCode(403, new { mensaje = "Acceso denegado: solo los alumnos pueden acceder a este recurso." });
 
             var idAlumno = int.Parse(User.FindFirstValue("Id"));
-            var desafios = repoDesafio.ObtenerPorAlumno(idAlumno);
+            var desafios = repoDesafio.ObtenerDesafiosConProgreso(idAlumno);
 
             return Ok(desafios);
         }

@@ -24,5 +24,8 @@ namespace ApiChallengeFit.Repository.IRepository
         Rutina? ObtenerRutinaPorId(int idRutina);
         int AgregarEjercicioARutina(RutinaEjercicio rutinaEjercicio);
         int EditarRutinaEjercicio(int idRutinaEjercicio, int series, int repeticiones);
+
+        // Progreso por alumno
+        IList<UsuarioRutinaEjercicio> ObtenerEjerciciosDelAlumno(int idUsuarioRutina);
     }
 }

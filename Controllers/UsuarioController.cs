@@ -172,6 +172,7 @@ namespace ApiChallengeFit.Controllers
 
         // GET /api/Usuario/alumnos/progreso
         // Devuelve los alumnos del entrenador logueado con el progreso de sus rutinas asignadas
+        // El porcentaje se calcula en base a los ejercicios completados de cada rutina
         [HttpGet("alumnos/progreso")]
         [Authorize]
         public IActionResult ObtenerAlumnosConProgreso()
@@ -186,26 +187,55 @@ namespace ApiChallengeFit.Controllers
             // Obtener alumnos asignados a este entrenador
             var alumnos = repoUsuario.ObtenerAlumnosConProgreso(idEntrenador);
 
-            // Para cada alumno, obtener sus rutinas asignadas con progreso
-            var resultado = alumnos.Select(alumno => new
+            // Para cada alumno, obtener sus rutinas asignadas con progreso basado en ejercicios
+            var resultado = alumnos.Select(alumno =>
             {
-                alumno.Id,
-                alumno.Nombre,
-                alumno.Email,
-                alumno.Objetivo,
-                Rutinas = _contexto.UsuarioRutinas
+                var rutinas = _contexto.UsuarioRutinas
                     .Where(ur => ur.IdUsuario == alumno.Id)
                     .Include(ur => ur.Rutina)
-                    .Select(ur => new
-                    {
-                        ur.Id,
-                        ur.IdRutina,
-                        NombreRutina = ur.Rutina != null ? ur.Rutina.Nombre : null,
-                        ur.FechaAsignacion,
-                        ur.FechaFinalizacion,
-                        ur.Completado
-                    })
                     .ToList()
+                    .Select(ur =>
+                    {
+                        // Contar ejercicios totales y completados POR ALUMNO
+                        var totalEjercicios = _contexto.UsuarioRutinaEjercicios
+                            .Count(ure => ure.IdUsuarioRutina == ur.Id);
+                        var ejerciciosCompletados = _contexto.UsuarioRutinaEjercicios
+                            .Count(ure => ure.IdUsuarioRutina == ur.Id && ure.Completado);
+
+                        var porcentaje = ur.Completado ? 100
+                            : totalEjercicios > 0
+                                ? (int)Math.Round((double)ejerciciosCompletados / totalEjercicios * 100)
+                                : 0;
+
+                        return new
+                        {
+                            ur.Id,
+                            ur.IdRutina,
+                            NombreRutina = ur.Rutina != null ? ur.Rutina.Nombre : null,
+                            ur.FechaAsignacion,
+                            ur.FechaFinalizacion,
+                            ur.Completado,
+                            Porcentaje = porcentaje,
+                            EjerciciosCompletados = ejerciciosCompletados,
+                            TotalEjercicios = totalEjercicios
+                        };
+                    })
+                    .ToList();
+
+                // Calcular porcentaje general del alumno (promedio de todas sus rutinas)
+                var porcentajeGeneral = rutinas.Count > 0
+                    ? (int)Math.Round(rutinas.Average(r => r.Porcentaje))
+                    : 0;
+
+                return new
+                {
+                    alumno.Id,
+                    alumno.Nombre,
+                    alumno.Email,
+                    alumno.Objetivo,
+                    PorcentajeGeneral = porcentajeGeneral,
+                    Rutinas = rutinas
+                };
             }).ToList();
 
             return Ok(resultado);

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ApiChallengeFit.Data;
 using ApiChallengeFit.Repository.IRepository;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,10 +12,12 @@ namespace ApiChallengeFit.Controllers
     public class RutinaController : ControllerBase
     {
         private readonly IRepositoryRutina repoRutina;
+        private readonly AppDbContext _contexto;
 
-        public RutinaController(IRepositoryRutina repo)
+        public RutinaController(IRepositoryRutina repo, AppDbContext contexto)
         {
             repoRutina = repo;
+            _contexto = contexto;
         }
 
         // GET /api/Rutina
@@ -36,7 +39,41 @@ namespace ApiChallengeFit.Controllers
             {
                 var idAlumno = int.Parse(idStr);
                 var rutinas = repoRutina.ObtenerPorAlumno(idAlumno);
-                return Ok(rutinas);
+                
+                // Obtenemos todas las asignaciones del alumno para cruzar los datos de completitud
+                var asignacionesAlumno = _contexto.UsuarioRutinas
+                    .Where(ur => ur.IdUsuario == idAlumno)
+                    .ToList();
+
+                var resultado = rutinas.Select(r => {
+                    var asignacion = asignacionesAlumno.FirstOrDefault(ur => ur.IdRutina == r.Id);
+                    var ejerciciosAlumno = asignacion != null 
+                        ? repoRutina.ObtenerEjerciciosDelAlumno(asignacion.Id) 
+                        : new List<UsuarioRutinaEjercicio>();
+
+                    return new {
+                        r.Id,
+                        r.Nombre,
+                        r.Nivel,
+                        r.Descripcion,
+                        r.Duracion,
+                        r.IdEntrenador,
+                        RutinaEjercicios = r.RutinaEjercicios?.Select(re => {
+                            var ure = ejerciciosAlumno.FirstOrDefault(x => x.IdRutinaEjercicio == re.Id);
+                            return new {
+                                re.Id,
+                                re.IdRutina,
+                                re.IdEjercicio,
+                                Ejercicio = re.Ejercicio,
+                                re.Series,
+                                re.Repeticiones,
+                                Completado = ure?.Completado ?? false // Usamos el valor del alumno
+                            };
+                        })
+                    };
+                });
+
+                return Ok(resultado);
             }
             else
             {
@@ -116,6 +153,15 @@ namespace ApiChallengeFit.Controllers
             if (rutina == null)
                 return Ok(new { mensaje = "No tenés rutinas pendientes por hoy.", rutina = (object?)null });
 
+            // Obtener el Id de la asignación UsuarioRutina para buscar progreso por alumno
+            var asignacion = _contexto.UsuarioRutinas
+                .FirstOrDefault(ur => ur.IdUsuario == idAlumno && ur.IdRutina == rutina.Id && !ur.Completado);
+
+            // Obtener el estado de completado por alumno desde UsuarioRutinaEjercicios
+            var ejerciciosAlumno = asignacion != null
+                ? repoRutina.ObtenerEjerciciosDelAlumno(asignacion.Id)
+                : new List<UsuarioRutinaEjercicio>();
+
             return Ok(new
             {
                 rutina.Id,
@@ -123,14 +169,19 @@ namespace ApiChallengeFit.Controllers
                 rutina.Nivel,
                 rutina.Descripcion,
                 rutina.Duracion,
-                Ejercicios = rutina.RutinaEjercicios?.Select(re => new
+                Ejercicios = rutina.RutinaEjercicios?.Select(re =>
                 {
-                    re.Id,
-                    NombreEjercicio = re.Ejercicio != null ? re.Ejercicio.Nombre : null,
-                    GrupoMuscular = re.Ejercicio != null ? re.Ejercicio.GrupoMuscular : null,
-                    re.Series,
-                    re.Repeticiones,
-                    re.Completado
+                    // Buscar si este ejercicio fue completado por este alumno
+                    var ure = ejerciciosAlumno.FirstOrDefault(x => x.IdRutinaEjercicio == re.Id);
+                    return new
+                    {
+                        re.Id,
+                        NombreEjercicio = re.Ejercicio != null ? re.Ejercicio.Nombre : null,
+                        GrupoMuscular = re.Ejercicio != null ? re.Ejercicio.GrupoMuscular : null,
+                        re.Series,
+                        re.Repeticiones,
+                        Completado = ure?.Completado ?? false
+                    };
                 })
             });
         }

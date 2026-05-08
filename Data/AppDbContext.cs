@@ -23,6 +23,7 @@ namespace ApiChallengeFit.Data
         public DbSet<Especialidad> Especialidades { get; set; }
         public DbSet<EspecialidadEntrenador> EspecialidadEntrenadores { get; set; }
         public DbSet<SolicitudVinculacion> Solicitudes { get; set; }
+        public DbSet<UsuarioRutinaEjercicio> UsuarioRutinaEjercicios { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

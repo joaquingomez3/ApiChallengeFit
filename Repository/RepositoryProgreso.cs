@@ -131,6 +131,7 @@ public class RepositoryProgreso : IRepositoryProgreso
     }
 
     // Obtiene el progreso desglosado por rutina de un alumno
+    // Calcula el porcentaje basándose en los ejercicios completados de la tabla rutinaejercicios
     public object? ObtenerRutinasConProgresoPorAlumno(int idEntrenador, int idAlumno, string estado)
     {
         // 1. Validar que el alumno pertenezca al entrenador logueado
@@ -157,17 +158,19 @@ public class RepositoryProgreso : IRepositoryProgreso
 
         var rutinasAsignadas = query.ToList();
 
-        // 4. Calcular progreso
-        var idsRutinas = rutinasAsignadas.Select(ur => ur.IdRutina).ToList();
-        var progresosActivos = contexto.Progresos
-            .Where(p => p.IdUsuario == idAlumno && idsRutinas.Contains(p.IdRutina ?? 0))
-            .ToList();
-
+        // 4. Calcular progreso basado en ejercicios completados de rutinaejercicios
         var resultado = new List<object>();
 
         foreach (var asignacion in rutinasAsignadas)
         {
-            int porcentaje = 0;
+            // Contar ejercicios totales y completados POR ALUMNO
+            var totalEjercicios = contexto.UsuarioRutinaEjercicios
+                .Count(ure => ure.IdUsuarioRutina == asignacion.Id);
+
+            var ejerciciosCompletados = contexto.UsuarioRutinaEjercicios
+                .Count(ure => ure.IdUsuarioRutina == asignacion.Id && ure.Completado);
+
+            int porcentaje;
 
             if (asignacion.Completado)
             {
@@ -175,28 +178,9 @@ public class RepositoryProgreso : IRepositoryProgreso
             }
             else
             {
-                // Buscamos progreso activo
-                var progreso = progresosActivos
-                    .OrderByDescending(p => p.Id)
-                    .FirstOrDefault(p => p.IdRutina == asignacion.IdRutina && !p.Completado);
-                
-                if (progreso != null && !string.IsNullOrEmpty(progreso.Estadisticas))
-                {
-                    try
-                    {
-                        using (var doc = System.Text.Json.JsonDocument.Parse(progreso.Estadisticas))
-                        {
-                            if (doc.RootElement.TryGetProperty("porcentaje", out var prop))
-                            {
-                                porcentaje = prop.GetInt32();
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Fallback a 0
-                    }
-                }
+                porcentaje = totalEjercicios > 0
+                    ? (int)Math.Round((double)ejerciciosCompletados / totalEjercicios * 100)
+                    : 0;
             }
 
             resultado.Add(new
@@ -207,7 +191,9 @@ public class RepositoryProgreso : IRepositoryProgreso
                 Duracion = asignacion.Rutina?.Duracion,
                 Completado = asignacion.Completado,
                 FechaAsignacion = asignacion.FechaAsignacion,
-                Porcentaje = porcentaje
+                Porcentaje = porcentaje,
+                EjerciciosCompletados = ejerciciosCompletados,
+                TotalEjercicios = totalEjercicios
             });
         }
 

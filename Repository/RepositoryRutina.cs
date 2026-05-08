@@ -132,7 +132,7 @@ public class RepositoryRutina : IRepositoryRutina
         return contexto.SaveChanges();
     }
 
-    // Marca un ejercicio de una rutina como completado e influye el progreso general
+    // Marca un ejercicio de una rutina como completado para un alumno específico
     public int CompletarEjercicio(int idAlumno, int idRutinaEjercicio)
     {
         var ejercicio = contexto.RutinaEjercicios
@@ -147,22 +147,30 @@ public class RepositoryRutina : IRepositoryRutina
 
         if (asignacion == null) return -1;
 
-        // Actualizar como completado
-        ejercicio.Completado = true;
+        // Buscar el registro de progreso por alumno en UsuarioRutinaEjercicios
+        var ure = contexto.UsuarioRutinaEjercicios
+            .FirstOrDefault(x => x.IdUsuarioRutina == asignacion.Id && x.IdRutinaEjercicio == idRutinaEjercicio);
+
+        if (ure == null) return -1;
+
+        // Marcar como completado para ESTE alumno
+        ure.Completado = true;
         contexto.SaveChanges();
 
-        // Calcular progreso general de la rutina
-        var totalEjercicios = contexto.RutinaEjercicios.Count(re => re.IdRutina == ejercicio.IdRutina);
-        var ejerciciosCompletados = contexto.RutinaEjercicios.Count(re => re.IdRutina == ejercicio.IdRutina && re.Completado);
+        // Calcular progreso basado en UsuarioRutinaEjercicios (por alumno)
+        var totalEjercicios = contexto.UsuarioRutinaEjercicios
+            .Count(x => x.IdUsuarioRutina == asignacion.Id);
+        var ejerciciosCompletados = contexto.UsuarioRutinaEjercicios
+            .Count(x => x.IdUsuarioRutina == asignacion.Id && x.Completado);
 
         if (totalEjercicios > 0 && ejerciciosCompletados >= totalEjercicios)
         {
-            // Completar automáticamente y cerrar la rutina dado que se completaron todos los ejercicios
+            // Completar automáticamente la rutina para este alumno
             CompletarRutina(idAlumno, ejercicio.IdRutina);
         }
         else
         {
-            // Opcionalmente podemos actualizar el progreso vivo de la rutina actual
+            // Actualizar el progreso vivo
             var progresoActivo = contexto.Progresos
                 .FirstOrDefault(p => p.IdUsuario == idAlumno && p.IdRutina == ejercicio.IdRutina && !p.Completado);
 
@@ -218,6 +226,23 @@ public class RepositoryRutina : IRepositoryRutina
         };
 
         contexto.UsuarioRutinas.Add(usuarioRutina);
+        contexto.SaveChanges();
+
+        // Crear filas de progreso por ejercicio para este alumno
+        var ejerciciosDeRutina = contexto.RutinaEjercicios
+            .Where(re => re.IdRutina == idRutina)
+            .ToList();
+
+        foreach (var ejercicio in ejerciciosDeRutina)
+        {
+            contexto.UsuarioRutinaEjercicios.Add(new UsuarioRutinaEjercicio
+            {
+                IdUsuarioRutina = usuarioRutina.Id,
+                IdRutinaEjercicio = ejercicio.Id,
+                Completado = false
+            });
+        }
+
         return contexto.SaveChanges();
     }
 
@@ -249,5 +274,15 @@ public class RepositoryRutina : IRepositoryRutina
         re.Series = series;
         re.Repeticiones = repeticiones;
         return contexto.SaveChanges();
+    }
+
+    // Obtiene los ejercicios de una asignación con su estado de completado por alumno
+    public IList<UsuarioRutinaEjercicio> ObtenerEjerciciosDelAlumno(int idUsuarioRutina)
+    {
+        return contexto.UsuarioRutinaEjercicios
+            .Where(x => x.IdUsuarioRutina == idUsuarioRutina)
+            .Include(x => x.RutinaEjercicio)
+                .ThenInclude(re => re.Ejercicio)
+            .ToList();
     }
 }
